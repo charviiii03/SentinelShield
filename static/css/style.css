@@ -61,6 +61,14 @@ body {
     top: 0;
     z-index: 1000;
 }
+/* Report page text fix */
+.report-card p,
+.report-card div,
+.report-card span,
+.executive-summary p,
+.summary-text {
+    color: #e6edf3 !important;
+}
 
 .brand-icon {
     width: 36px; height: 36px;
@@ -490,7 +498,7 @@ body {
 
 .report-stat { text-align: center; padding: 12px; }
 .report-stat-val { font-family: var(--font-mono); font-size: 28px; font-weight: 700; }
-.report-stat-label { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+.report-stat-label { font-size: 12px; color: #6b7280; margin-top: 4px; }
 
 .report-summary-box {
     background: var(--bg-raised);
