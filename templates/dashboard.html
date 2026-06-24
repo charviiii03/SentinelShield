@@ -1,0 +1,344 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — SentinelShield{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+    <!-- Page Header -->
+    <div class="page-header mb-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+            <div>
+                <h1 class="page-title">
+                    <i class="bi bi-speedometer2 text-accent me-2"></i>Security Dashboard
+                </h1>
+                <p class="page-subtitle">Real-time intrusion detection & traffic analysis</p>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-danger" onclick="resetLogs()">
+                    <i class="bi bi-trash me-1"></i> Reset Logs
+                </button>
+                <a href="/test" class="btn btn-sm btn-accent">
+                    <i class="bi bi-bug me-1"></i> Run Tests
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         ROW 1: STAT CARDS
+         ============================================================ -->
+    <div class="row g-3 mb-4">
+
+        <!-- Total Requests -->
+        <div class="col-6 col-lg-3">
+            <div class="stat-card stat-card-blue">
+                <div class="stat-icon"><i class="bi bi-arrow-left-right"></i></div>
+                <div class="stat-value">{{ stats.total_requests }}</div>
+                <div class="stat-label">Total Requests</div>
+                <div class="stat-sub">All inspected traffic</div>
+            </div>
+        </div>
+
+        <!-- Blocked Requests -->
+        <div class="col-6 col-lg-3">
+            <div class="stat-card stat-card-red">
+                <div class="stat-icon"><i class="bi bi-shield-x"></i></div>
+                <div class="stat-value">{{ stats.blocked_requests }}</div>
+                <div class="stat-label">Threats Blocked</div>
+                <div class="stat-sub">{{ stats.block_rate }}% block rate</div>
+            </div>
+        </div>
+
+        <!-- Allowed Requests -->
+        <div class="col-6 col-lg-3">
+            <div class="stat-card stat-card-green">
+                <div class="stat-icon"><i class="bi bi-shield-check"></i></div>
+                <div class="stat-value">{{ stats.allowed_requests }}</div>
+                <div class="stat-label">Requests Allowed</div>
+                <div class="stat-sub">Clean traffic passed</div>
+            </div>
+        </div>
+
+        <!-- Rate Limited -->
+        <div class="col-6 col-lg-3">
+            <div class="stat-card stat-card-orange">
+                <div class="stat-icon"><i class="bi bi-stopwatch"></i></div>
+                <div class="stat-value">{{ stats.rate_limited_requests }}</div>
+                <div class="stat-label">Rate Limited</div>
+                <div class="stat-sub">Brute-force attempts</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         ROW 2: CHARTS
+         ============================================================ -->
+    <div class="row g-3 mb-4">
+
+        <!-- Attack Type Doughnut Chart -->
+        <div class="col-lg-5">
+            <div class="card sentinel-card h-100">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="bi bi-pie-chart-fill me-2 text-accent"></i>Attack Type Breakdown
+                    </span>
+                </div>
+                <div class="card-body d-flex align-items-center justify-content-center">
+                    {% if stats.attack_breakdown %}
+                        <div style="max-height: 260px; max-width: 260px;">
+                            <canvas id="attackTypeChart"></canvas>
+                        </div>
+                    {% else %}
+                        <div class="empty-state">
+                            <i class="bi bi-shield-fill-check"></i>
+                            <p>No attacks detected yet.<br>
+                            <a href="/test" class="text-accent">Submit test payloads</a> to populate this chart.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Severity Distribution Bar Chart -->
+        <div class="col-lg-7">
+            <div class="card sentinel-card h-100">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="bi bi-bar-chart-fill me-2 text-accent"></i>Severity Distribution
+                    </span>
+                </div>
+                <div class="card-body">
+                    {% if stats.severity_breakdown %}
+                        <canvas id="severityChart" style="max-height: 260px;"></canvas>
+                    {% else %}
+                        <div class="empty-state">
+                            <i class="bi bi-bar-chart"></i>
+                            <p>No severity data yet.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         ROW 3: FLAGGED IPs + RECENT ALERTS
+         ============================================================ -->
+    <div class="row g-3 mb-4">
+
+        <!-- Flagged IPs -->
+        <div class="col-lg-4">
+            <div class="card sentinel-card h-100">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i>Flagged IPs
+                    </span>
+                    <span class="badge bg-warning text-dark">{{ stats.flagged_ips | length }}</span>
+                </div>
+                <div class="card-body p-0">
+                    {% if stats.flagged_ips %}
+                        <ul class="ip-list">
+                            {% for ip_data in stats.flagged_ips %}
+                            <li class="ip-list-item">
+                                <div class="ip-address">
+                                    <i class="bi bi-geo-alt-fill text-danger me-2"></i>
+                                    <code>{{ ip_data.ip }}</code>
+                                </div>
+                                <div class="ip-meta">
+                                    <span class="badge badge-danger-soft">{{ ip_data.attack_count }} attacks</span>
+                                    <small class="text-muted">
+                                        {{ ip_data.attack_types[:2] | join(', ') }}
+                                        {% if ip_data.attack_types | length > 2 %}+more{% endif %}
+                                    </small>
+                                </div>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <div class="empty-state">
+                            <i class="bi bi-person-check"></i>
+                            <p>No flagged IPs.<br>Run attack tests to populate.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Alerts Feed -->
+        <div class="col-lg-8">
+            <div class="card sentinel-card h-100">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="bi bi-bell-fill me-2 text-danger"></i>Recent Alerts
+                    </span>
+                    <a href="/logs" class="btn btn-xs btn-outline-secondary">View all</a>
+                </div>
+                <div class="card-body p-0">
+                    {% if stats.recent_alerts %}
+                        <div class="alert-feed">
+                            {% for alert in stats.recent_alerts %}
+                            <div class="alert-item severity-{{ alert.severity | lower }}">
+                                <div class="alert-left">
+                                    <span class="severity-badge severity-{{ alert.severity | lower }}">
+                                        {{ alert.severity }}
+                                    </span>
+                                    <div class="alert-info">
+                                        <strong>{{ alert.attack_type }}</strong>
+                                        <small>{{ alert.path or '/' }}</small>
+                                    </div>
+                                </div>
+                                <div class="alert-right">
+                                    <code class="text-muted">{{ alert.ip_address }}</code>
+                                    <small class="text-muted">{{ alert.timestamp }}</small>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="empty-state">
+                            <i class="bi bi-bell-slash"></i>
+                            <p>No alerts yet. <a href="/test" class="text-accent">Test the WAF</a> to generate alerts.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         ROW 4: HOW IT WORKS (Info Panel)
+         ============================================================ -->
+    <div class="row g-3">
+        <div class="col-12">
+            <div class="card sentinel-card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="bi bi-diagram-3-fill me-2 text-accent"></i>Detection Pipeline
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="pipeline-flow">
+                        <div class="pipeline-step">
+                            <div class="pipeline-icon bg-blue"><i class="bi bi-arrow-down-circle"></i></div>
+                            <div class="pipeline-label">1. Request In</div>
+                            <small>HTTP request arrives</small>
+                        </div>
+                        <div class="pipeline-arrow"><i class="bi bi-arrow-right"></i></div>
+                        <div class="pipeline-step">
+                            <div class="pipeline-icon bg-orange"><i class="bi bi-stopwatch"></i></div>
+                            <div class="pipeline-label">2. Rate Check</div>
+                            <small>IP frequency analysis</small>
+                        </div>
+                        <div class="pipeline-arrow"><i class="bi bi-arrow-right"></i></div>
+                        <div class="pipeline-step">
+                            <div class="pipeline-icon bg-purple"><i class="bi bi-search"></i></div>
+                            <div class="pipeline-label">3. Inspection</div>
+                            <small>Parse URL/body/headers</small>
+                        </div>
+                        <div class="pipeline-arrow"><i class="bi bi-arrow-right"></i></div>
+                        <div class="pipeline-step">
+                            <div class="pipeline-icon bg-yellow"><i class="bi bi-list-check"></i></div>
+                            <div class="pipeline-label">4. Rule Match</div>
+                            <small>Regex pattern matching</small>
+                        </div>
+                        <div class="pipeline-arrow"><i class="bi bi-arrow-right"></i></div>
+                        <div class="pipeline-step">
+                            <div class="pipeline-icon bg-red"><i class="bi bi-shield-x"></i></div>
+                            <div class="pipeline-label">5. Block / Allow</div>
+                            <small>Decision & response</small>
+                        </div>
+                        <div class="pipeline-arrow"><i class="bi bi-arrow-right"></i></div>
+                        <div class="pipeline-step">
+                            <div class="pipeline-icon bg-green"><i class="bi bi-journal-check"></i></div>
+                            <div class="pipeline-label">6. Log & Alert</div>
+                            <small>DB + file + dashboard</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+
+{% if stats.attack_breakdown %}
+<script>
+// ── Attack Type Doughnut Chart ──────────────────────────────────
+const attackLabels = JSON.parse('{{ stats.attack_breakdown.keys() | list | tojson | safe }}');
+const attackValues = JSON.parse('{{ stats.attack_breakdown.values() | list | tojson | safe }}');
+
+const attackColors = {
+    "SQL Injection":                 "#ef4444",
+    "Cross-Site Scripting (XSS)":   "#f97316",
+    "Local File Inclusion (LFI)":   "#eab308",
+    "Directory Traversal":           "#8b5cf6",
+    "Command Injection":             "#ec4899",
+    "Path Manipulation":             "#06b6d4",
+};
+
+const doughnutColors = attackLabels.map(l => attackColors[l] || "#6b7280");
+
+new Chart(document.getElementById("attackTypeChart"), {
+    type: "doughnut",
+    data: {
+        labels: attackLabels,
+        datasets: [{
+            data: attackValues,
+            backgroundColor: doughnutColors,
+            borderColor: "#1a1f2e",
+            borderWidth: 2,
+            hoverOffset: 6,
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                position: "bottom",
+                labels: { color: "#9ca3af", font: { size: 11 }, padding: 12 }
+            }
+        }
+    }
+});
+
+// ── Severity Bar Chart ───────────────────────────────────────────
+const sevLabels = JSON.parse('{{ stats.severity_breakdown.keys() | list | tojson | safe }}');
+const sevValues = JSON.parse('{{ stats.severity_breakdown.values() | list | tojson | safe }}');
+
+const sevColors = {
+    "CRITICAL": "#ef4444",
+    "HIGH":     "#f97316",
+    "MEDIUM":   "#eab308",
+    "LOW":      "#22c55e",
+    "NONE":     "#6b7280",
+};
+
+new Chart(document.getElementById("severityChart"), {
+    type: "bar",
+    data: {
+        labels: sevLabels,
+        datasets: [{
+            label: "Blocked Requests",
+            data: sevValues,
+            backgroundColor: sevLabels.map(l => sevColors[l] || "#6b7280"),
+            borderRadius: 6,
+            borderSkipped: false,
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { ticks: { color: "#9ca3af" }, grid: { color: "#1f2937" } },
+            y: { ticks: { color: "#9ca3af", stepSize: 1 }, grid: { color: "#1f2937" } }
+        }
+    }
+});
+</script>
+{% endif %}
+{% endblock %}

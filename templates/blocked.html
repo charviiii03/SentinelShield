@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Request Blocked{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-center" style="min-height:60vh;">
+  <div class="text-center blocked-page">
+    <div class="blocked-icon">🚫</div>
+    <h1 class="blocked-title">Access Denied</h1>
+    <div class="blocked-reason">{{ reason }}</div>
+    <p class="text-muted mt-3 small">{{ detail }}</p>
+    <div class="mt-4 d-flex gap-3 justify-content-center">
+      <a href="{{ url_for('dashboard') }}" class="btn btn-cyan">
+        <i class="bi bi-speedometer2"></i> Dashboard
+      </a>
+      <a href="{{ url_for('logs_page') }}" class="btn btn-outline-cyan">
+        <i class="bi bi-journal-text"></i> View Logs
+      </a>
+    </div>
+    <p class="text-muted mt-4" style="font-size:0.75rem;">
+      SentinelShield WAF &mdash; This event has been logged.
+    </p>
+  </div>
+</div>
+{% endblock %}

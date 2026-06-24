@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+{% block title %}Security Report — SentinelShield{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+    <!-- Page Header -->
+    <div class="page-header mb-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+            <div>
+                <h1 class="page-title">
+                    <i class="bi bi-file-earmark-bar-graph text-accent me-2"></i>Practical Security Report
+                </h1>
+                <p class="page-subtitle">Generated: {{ generated_at }} — WAF detection session summary</p>
+            </div>
+            <button class="btn btn-sm btn-accent" onclick="window.print()">
+                <i class="bi bi-printer me-1"></i> Print Report
+            </button>
+        </div>
+    </div>
+
+    <!-- ── Section 1: Executive Summary ── -->
+    <div class="card sentinel-card mb-4">
+        <div class="card-header">
+            <span class="card-title report-section-title">
+                <span class="report-num">01</span> Executive Summary
+            </span>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3 col-6">
+                    <div class="report-stat">
+                        <div class="report-stat-val">{{ stats.total_requests }}</div>
+                        <div class="report-stat-label">Total Requests Inspected</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <div class="report-stat">
+                        <div class="report-stat-val text-danger">{{ stats.blocked_requests }}</div>
+                        <div class="report-stat-label">Malicious Requests Blocked</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <div class="report-stat">
+                        <div class="report-stat-val text-success">{{ stats.allowed_requests }}</div>
+                        <div class="report-stat-label">Legitimate Requests Allowed</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <div class="report-stat">
+                        <div class="report-stat-val text-warning">{{ stats.rate_limited_requests }}</div>
+                        <div class="report-stat-label">Rate-Limited / Banned</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-3 p-3 report-summary-box">
+                <p class="mb-0 text-sm">
+                    During this practical session, <strong>{{ stats.total_requests }}</strong> HTTP requests were
+                    processed by SentinelShield's detection engine. Of these,
+                    <strong class="text-danger">{{ stats.blocked_requests }}</strong>
+                    ({{ stats.block_rate }}%) were identified as malicious and blocked.
+                    The system detected
+                    <strong>{{ stats.attack_breakdown | length }}</strong> distinct attack categories
+                    across <strong>{{ stats.flagged_ips | length }}</strong> flagged IP addresses.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Section 2: Attack Breakdown ── -->
+    <div class="card sentinel-card mb-4">
+        <div class="card-header">
+            <span class="card-title report-section-title">
+                <span class="report-num">02</span> Attack Category Analysis
+            </span>
+        </div>
+        <div class="card-body">
+            {% if stats.attack_breakdown %}
+            <div class="table-responsive">
+                <table class="table sentinel-table">
+                    <thead>
+                        <tr>
+                            <th>Attack Category</th>
+                            <th>Detection Count</th>
+                            <th>Percentage</th>
+                            <th>Risk Level</th>
+                            <th>Visual</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% set total_attacks = stats.attack_breakdown.values() | sum %}
+                        {% set severity_map = {
+                            'sqli': ('SQL Injection', 'CRITICAL'),
+                            'xss': ('Cross-Site Scripting', 'HIGH'),
+                            'lfi': ('Local File Inclusion', 'CRITICAL'),
+                            'traversal': ('Directory Traversal', 'HIGH'),
+                            'cmdi': ('Command Injection', 'CRITICAL'),
+                            'path': ('Path Manipulation', 'MEDIUM')
+                        } %}
+                        {% for cat, count in stats.attack_breakdown.items() %}
+                        {% set pct = ((count / total_attacks) * 100) | round(1) %}
+                        <tr>
+                            <td><strong>{{ severity_map.get(cat, (cat, 'MEDIUM'))[0] }}</strong></td>
+                            <td><strong>{{ count }}</strong></td>
+                            <td>{{ pct }}%</td>
+                            <td>
+                                <span class="severity-badge severity-{{ severity_map.get(cat, (cat, 'medium'))[1] | lower }}">
+                                    {{ severity_map.get(cat, (cat, 'MEDIUM'))[1] }}
+                                </span>
+                            </td>
+                            <td style="width: 200px;">
+                                <div class="report-bar-bg">
+                                    <div class="report-bar-fill severity-bar-{{ severity_map.get(cat, (cat, 'medium'))[1] | lower }}"
+                                         data-width="{{ pct }}" style="width: 0%;"></div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted">No attacks detected. <a href="/test" class="text-accent">Run test payloads</a> first.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ── Section 3: Flagged IPs ── -->
+    <div class="card sentinel-card mb-4">
+        <div class="card-header">
+            <span class="card-title report-section-title">
+                <span class="report-num">03</span> Flagged IP Addresses
+            </span>
+        </div>
+        <div class="card-body">
+            {% if stats.flagged_ips %}
+            <div class="table-responsive">
+                <table class="table sentinel-table">
+                    <thead>
+                        <tr>
+                            <th>IP Address</th>
+                            <th>Total Attack Events</th>
+                            <th>Attack Types</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ip_data in stats.flagged_ips %}
+                        <tr>
+                            <td><code>{{ ip_data.ip }}</code></td>
+                            <td><strong class="text-danger">{{ ip_data.attack_count }}</strong></td>
+                            <td>
+                                {% for at in ip_data.attack_types %}
+                                <span class="badge badge-category me-1">{{ at }}</span>
+                                {% endfor %}
+                            </td>
+                            <td><span class="badge bg-danger">FLAGGED</span></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted">No flagged IPs.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ── Section 4: Security Recommendations ── -->
+    <div class="card sentinel-card mb-4">
+        <div class="card-header">
+            <span class="card-title report-section-title">
+                <span class="report-num">04</span> Security Recommendations
+            </span>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                {% for rec in recommendations %}
+                <div class="col-md-6">
+                    <div class="recommendation-card priority-{{ rec.priority | lower }}">
+                        <div class="rec-header">
+                            <strong>{{ rec.type }}</strong>
+                            <span class="badge
+                                {% if rec.priority == 'CRITICAL' %}bg-danger
+                                {% elif rec.priority == 'HIGH' %}bg-orange
+                                {% elif rec.priority == 'MEDIUM' %}bg-warning text-dark
+                                {% else %}bg-info{% endif %}">
+                                {{ rec.priority }}
+                            </span>
+                        </div>
+                        <p class="rec-body">{{ rec.action }}</p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Section 5: Recent Attack Log Entries ── -->
+    <div class="card sentinel-card mb-4">
+        <div class="card-header">
+            <span class="card-title report-section-title">
+                <span class="report-num">05</span> Recent Malicious Request Log
+            </span>
+        </div>
+        <div class="card-body p-0">
+            {% if malicious_logs %}
+            <div class="table-responsive">
+                <table class="table sentinel-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>IP</th>
+                            <th>Path</th>
+                            <th>Categories</th>
+                            <th>Severity</th>
+                            <th>Summary</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in malicious_logs[:20] %}
+                        <tr>
+                            <td class="font-mono text-sm">{{ log.timestamp }}</td>
+                            <td><code>{{ log.ip_address }}</code></td>
+                            <td class="font-mono text-sm">{{ log.path or '/' }}</td>
+                            <td>
+                                {% for cat in log.attack_categories[:2] %}
+                                <span class="badge badge-category me-1">{{ cat }}</span>
+                                {% endfor %}
+                            </td>
+                            <td>
+                                <span class="severity-badge severity-{{ log.severity | lower }}">{{ log.severity }}</span>
+                            </td>
+                            <td class="text-sm text-muted">{{ log.summary[:80] }}{% if log.summary | length > 80 %}...{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state py-4">
+                <p class="text-muted">No malicious requests logged yet.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+<script>
+document.querySelectorAll(".report-bar-fill").forEach(function (bar) {
+    const width = bar.getAttribute("data-width") || "0";
+    bar.style.width = width + "%";
+});
+</script>
+{% endblock %}

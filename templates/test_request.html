@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+{% block title %}Test Requests — SentinelShield{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+    <!-- Page Header -->
+    <div class="page-header mb-4">
+        <h1 class="page-title">
+            <i class="bi bi-bug-fill text-accent me-2"></i>Test Request Analyzer
+        </h1>
+        <p class="page-subtitle">Submit payloads to test the WAF detection engine. Safe for demo use — nothing is executed.</p>
+    </div>
+
+    <div class="row g-4">
+
+        <!-- LEFT: Submission Form -->
+        <div class="col-lg-6">
+            <div class="card sentinel-card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="bi bi-send me-2 text-accent"></i>Submit Test Payload
+                    </span>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="/analyze">
+
+                        <!-- Method + Path Row -->
+                        <div class="row g-2 mb-3">
+                            <div class="col-4">
+                                <label class="form-label-sm">HTTP Method</label>
+                                <select name="method" class="form-select form-select-sm sentinel-input">
+                                    <option value="GET">GET</option>
+                                    <option value="POST" selected>POST</option>
+                                    <option value="PUT">PUT</option>
+                                    <option value="DELETE">DELETE</option>
+                                </select>
+                            </div>
+                            <div class="col-8">
+                                <label class="form-label-sm">URL Path</label>
+                                <input type="text" name="path" class="form-control form-control-sm sentinel-input"
+                                       value="/search" placeholder="/login or /api/user">
+                            </div>
+                        </div>
+
+                        <!-- Main Payload -->
+                        <div class="mb-3">
+                            <label class="form-label-sm">
+                                Payload / Input
+                                <span class="text-muted ms-1">(URL param, form field, or body)</span>
+                            </label>
+                            <textarea name="payload" id="payloadInput" rows="4"
+                                      class="form-control sentinel-input font-mono"
+                                      placeholder="Enter your test payload here...
+Example: ' OR '1'='1
+Example: <script>alert('xss')</script>
+Example: ../../../../etc/passwd">{% if result %}{{ result.payload }}{% endif %}</textarea>
+                        </div>
+
+                        <!-- Optional Header -->
+                        <div class="mb-3">
+                            <label class="form-label-sm">
+                                Test Header Value
+                                <span class="text-muted ms-1">(Optional — simulates User-Agent injection)</span>
+                            </label>
+                            <input type="text" name="test_header" class="form-control form-control-sm sentinel-input font-mono"
+                                   placeholder="e.g. Mozilla/5.0 or '; DROP TABLE--">
+                        </div>
+
+                        <button type="submit" class="btn btn-accent w-100">
+                            <i class="bi bi-shield-fill-check me-2"></i>Analyze Request
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Rate Limit Info -->
+            <div class="card sentinel-card mt-3">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="bi bi-stopwatch me-2 text-warning"></i>Rate Limit Config
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center g-2">
+                        <div class="col-4">
+                            <div class="mini-stat">
+                                <div class="mini-stat-val text-warning">{{ rate_config.max_requests }}</div>
+                                <div class="mini-stat-label">Max Req / Window</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="mini-stat">
+                                <div class="mini-stat-val text-warning">{{ rate_config.time_window }}s</div>
+                                <div class="mini-stat-label">Time Window</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="mini-stat">
+                                <div class="mini-stat-val text-warning">{{ rate_config.ban_duration }}s</div>
+                                <div class="mini-stat-label">Ban Duration</div>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-muted mt-2 mb-0 small">
+                        Submit more than {{ rate_config.max_requests }} requests in {{ rate_config.time_window }} seconds to trigger rate limiting.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: Detection Result -->
+        <div class="col-lg-6">
+
+            {% if result %}
+            <!-- ── Detection Result ───────────────────────────────── -->
+            <div class="card sentinel-card {% if result.blocked %}card-blocked{% else %}card-allowed{% endif %}">
+                <div class="card-header">
+                    <span class="card-title">
+                        {% if result.blocked %}
+                            <i class="bi bi-shield-x me-2 text-danger"></i>
+                            <span class="text-danger">Request BLOCKED</span>
+                        {% else %}
+                            <i class="bi bi-shield-check me-2 text-success"></i>
+                            <span class="text-success">Request ALLOWED</span>
+                        {% endif %}
+                    </span>
+                    <span class="badge {% if result.blocked %}bg-danger{% else %}bg-success{% endif %}">
+                        {{ result.status }}
+                    </span>
+                </div>
+                <div class="card-body">
+
+                    <!-- Status Banner -->
+                    <div class="result-banner {% if result.blocked %}banner-danger{% else %}banner-success{% endif %} mb-3">
+                        <div class="result-icon">
+                            {% if result.blocked %}
+                                <i class="bi bi-x-circle-fill"></i>
+                            {% else %}
+                                <i class="bi bi-check-circle-fill"></i>
+                            {% endif %}
+                        </div>
+                        <div class="result-text">
+                            <strong>{{ result.detection.summary }}</strong>
+                            <small>{{ result.timestamp }} · IP: {{ result.ip }}</small>
+                        </div>
+                    </div>
+
+                    <!-- Quick Stats Row -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <div class="detail-item">
+                                <span class="detail-label">Severity</span>
+                                <span class="severity-badge severity-{{ result.detection.severity | lower }}">
+                                    {{ result.detection.severity }}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="detail-item">
+                                <span class="detail-label">Matches Found</span>
+                                <strong class="text-accent">{{ result.detection.total_matches }}</strong>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="detail-item">
+                                <span class="detail-label">Rate Status</span>
+                                <span class="badge
+                                    {% if result.rate_limit.status == 'OK' %}bg-success
+                                    {% elif result.rate_limit.status == 'SUSPICIOUS' %}bg-warning text-dark
+                                    {% else %}bg-danger{% endif %}">
+                                    {{ result.rate_limit.status }}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="detail-item">
+                                <span class="detail-label">Requests in Window</span>
+                                <strong>{{ result.rate_limit.request_count }}</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Attack Categories -->
+                    {% if result.detection.categories %}
+                    <div class="mb-3">
+                        <span class="detail-label d-block mb-1">Detected Categories</span>
+                        {% for cat in result.detection.categories %}
+                        <span class="badge badge-category me-1">{{ cat | upper }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <!-- Detection Details -->
+                    {% if result.detection.detections %}
+                    <div>
+                        <span class="detail-label d-block mb-2">Detection Details</span>
+                        {% for det in result.detection.detections %}
+                        <div class="detection-detail-item mb-2">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <strong class="text-sm">{{ det.rule_name }}</strong>
+                                <span class="severity-badge severity-{{ det.severity | lower }} ms-2">{{ det.severity }}</span>
+                            </div>
+                            <div class="detection-field">Field: <code>{{ det.field }}</code></div>
+                            <div class="detection-match">
+                                Match: <code class="text-danger">{{ det.matched_text[:60] }}{% if det.matched_text | length > 60 %}...{% endif %}</code>
+                            </div>
+                            <small class="text-muted">{{ det.description }}</small>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- ── Sample Payloads Reference ──────────────────────── -->
+            <div class="card sentinel-card mt-3">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="bi bi-collection me-2 text-accent"></i>Sample Attack Payloads
+                    </span>
+                    <small class="text-muted">Click to load</small>
+                </div>
+                <div class="card-body p-0">
+                    <div class="accordion payload-accordion" id="payloadAccordion">
+
+                        <div class="accordion-item payload-acc-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button payload-acc-btn collapsed" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#normal-collapse">
+                                    <span class="badge bg-success me-2">SAFE</span> Normal Requests
+                                </button>
+                            </h2>
+                            <div id="normal-collapse" class="accordion-collapse collapse" data-bs-parent="#payloadAccordion">
+                                <div class="accordion-body p-2">
+                                    {% for p in sample_payloads.get('normal', []) %}
+                                    <div class="payload-sample" onclick="loadPayload('{{ p | e }}')">
+                                        <code>{{ p }}</code>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item payload-acc-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button payload-acc-btn collapsed" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#sqli-collapse">
+                                    <span class="badge bg-danger me-2">ATTACK</span> SQL Injection
+                                </button>
+                            </h2>
+                            <div id="sqli-collapse" class="accordion-collapse collapse" data-bs-parent="#payloadAccordion">
+                                <div class="accordion-body p-2">
+                                    {% for p in sample_payloads.get('sqli', []) %}
+                                    <div class="payload-sample" onclick="loadPayload('{{ p | e }}')">
+                                        <code>{{ p }}</code>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item payload-acc-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button payload-acc-btn collapsed" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#xss-collapse">
+                                    <span class="badge bg-danger me-2">ATTACK</span> XSS
+                                </button>
+                            </h2>
+                            <div id="xss-collapse" class="accordion-collapse collapse" data-bs-parent="#payloadAccordion">
+                                <div class="accordion-body p-2">
+                                    {% for p in sample_payloads.get('xss', []) %}
+                                    <div class="payload-sample" onclick="loadPayload('{{ p | e }}')">
+                                        <code>{{ p }}</code>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item payload-acc-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button payload-acc-btn collapsed" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#lfi-collapse">
+                                    <span class="badge bg-warning text-dark me-2">ATTACK</span> LFI
+                                </button>
+                            </h2>
+                            <div id="lfi-collapse" class="accordion-collapse collapse" data-bs-parent="#payloadAccordion">
+                                <div class="accordion-body p-2">
+                                    {% for p in sample_payloads.get('lfi', []) %}
+                                    <div class="payload-sample" onclick="loadPayload('{{ p | e }}')">
+                                        <code>{{ p }}</code>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item payload-acc-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button payload-acc-btn collapsed" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#traversal-collapse">
+                                    <span class="badge bg-warning text-dark me-2">ATTACK</span> Directory Traversal
+                                </button>
+                            </h2>
+                            <div id="traversal-collapse" class="accordion-collapse collapse" data-bs-parent="#payloadAccordion">
+                                <div class="accordion-body p-2">
+                                    {% for p in sample_payloads.get('traversal', []) %}
+                                    <div class="payload-sample" onclick="loadPayload('{{ p | e }}')">
+                                        <code>{{ p }}</code>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item payload-acc-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button payload-acc-btn collapsed" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#cmdi-collapse">
+                                    <span class="badge bg-danger me-2">ATTACK</span> Command Injection
+                                </button>
+                            </h2>
+                            <div id="cmdi-collapse" class="accordion-collapse collapse" data-bs-parent="#payloadAccordion">
+                                <div class="accordion-body p-2">
+                                    {% for p in sample_payloads.get('cmdi', []) %}
+                                    <div class="payload-sample" onclick="loadPayload('{{ p | e }}')">
+                                        <code>{{ p }}</code>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /col -->
+    </div><!-- /row -->
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function loadPayload(payload) {
+    document.getElementById("payloadInput").value = payload;
+    document.getElementById("payloadInput").focus();
+    document.getElementById("payloadInput").scrollIntoView({ behavior: "smooth" });
+}
+</script>
+{% endblock %}
