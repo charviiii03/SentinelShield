@@ -359,10 +359,13 @@ def blocked():
 # Run the Application
 # =============================================================================
 if __name__ == "__main__":
+    import os
+
+    port = int(os.environ.get("PORT", 5000))
+
     print("=" * 60)
     print("  SentinelShield - Intrusion Detection System")
-    print("  Starting on http://127.0.0.1:5000")
+    print(f"  Starting on port {port}")
     print("=" * 60)
-    
-    # debug=True shows detailed error pages (disable in production!)
-    app.run(debug=True, host="0.0.0.0", port=5000)
+
+    app.run(debug=False, host="0.0.0.0", port=port)
